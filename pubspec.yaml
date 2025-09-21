@@ -1,6 +1,6 @@
 name: okatagonplugin
 description: Embed Okatagon conversational agents in Flutter apps via a customizable WebView.
-version: 0.1.0
+version: 0.1.1
 homepage: https://github.com/photoplyr/okatagonplugin
 repository: https://github.com/photoplyr/okatagonplugin
 issue_tracker: https://github.com/photoplyr/okatagonplugin/issues

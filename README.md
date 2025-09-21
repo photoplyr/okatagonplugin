@@ -15,7 +15,7 @@ Add the dependency to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  okatagonplugin: ^0.1.0
+  okatagonplugin: ^0.1.1
 ```
 
 Then run `flutter pub get`.
