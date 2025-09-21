@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_android/webview_flutter_android.dart';
+import 'package:webview_flutter_platform_interface/webview_flutter_platform_interface.dart';
+import 'package:webview_flutter_wkwebview/webview_flutter_wkwebview.dart';
 
 /// Renders an Oktagon agent inside a platform WebView.
 class OkatagonAgentView extends StatefulWidget {
@@ -57,7 +60,38 @@ class _OkatagonAgentViewState extends State<OkatagonAgentView> {
   @override
   void initState() {
     super.initState();
-    _controller = WebViewController()
+    _controller = _createController();
+    _loadAgent();
+  }
+
+  @override
+  void didUpdateWidget(OkatagonAgentView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.agentId != widget.agentId ||
+        oldWidget.baseUrl != widget.baseUrl ||
+        !_mapsEqual(oldWidget.queryParameters, widget.queryParameters) ||
+        !_mapsEqual(oldWidget.customHeaders, widget.customHeaders)) {
+      _loadAgent();
+    }
+  }
+
+  void _loadAgent() {
+    final uri = widget.buildAgentUri();
+    final headers = widget.customHeaders ?? {};
+    setState(() {
+      _isLoading = true;
+      _lastError = null;
+    });
+
+    unawaited(_controller.loadRequest(uri, headers: headers));
+  }
+
+  WebViewController _createController() {
+    _ensurePlatformImplementation();
+
+    final controller = WebViewController.fromPlatformCreationParams(
+      _platformParams(),
+    )
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
       ..setBackgroundColor(const Color(0x00000000))
       ..setNavigationDelegate(
@@ -84,29 +118,61 @@ class _OkatagonAgentViewState extends State<OkatagonAgentView> {
           },
         ),
       );
-    _loadAgent();
+
+    if (controller.platform is WebKitWebViewController) {
+      final webKitController = controller.platform as WebKitWebViewController;
+      webKitController
+        ..setAllowsBackForwardNavigationGestures(true);
+    }
+
+    if (controller.platform is AndroidWebViewController) {
+      final androidController =
+          controller.platform as AndroidWebViewController;
+      androidController.setMediaPlaybackRequiresUserGesture(false);
+    }
+
+    return controller;
   }
 
-  @override
-  void didUpdateWidget(OkatagonAgentView oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.agentId != widget.agentId ||
-        oldWidget.baseUrl != widget.baseUrl ||
-        !_mapsEqual(oldWidget.queryParameters, widget.queryParameters) ||
-        !_mapsEqual(oldWidget.customHeaders, widget.customHeaders)) {
-      _loadAgent();
+  void _ensurePlatformImplementation() {
+    if (kIsWeb) {
+      return;
+    }
+
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        if (WebViewPlatform.instance is! AndroidWebViewPlatform) {
+          AndroidWebViewPlatform.registerWith();
+        }
+        break;
+      case TargetPlatform.iOS:
+      case TargetPlatform.macOS:
+        if (WebViewPlatform.instance is! WebKitWebViewPlatform) {
+          WebKitWebViewPlatform.registerWith();
+        }
+        break;
+      default:
+        break;
     }
   }
 
-  void _loadAgent() {
-    final uri = widget.buildAgentUri();
-    final headers = widget.customHeaders ?? {};
-    setState(() {
-      _isLoading = true;
-      _lastError = null;
-    });
+  PlatformWebViewControllerCreationParams _platformParams() {
+    if (!kIsWeb) {
+      switch (defaultTargetPlatform) {
+        case TargetPlatform.iOS:
+        case TargetPlatform.macOS:
+          return  WebKitWebViewControllerCreationParams(
+            allowsInlineMediaPlayback: true,
+            mediaTypesRequiringUserAction: <PlaybackMediaTypes>{},
+          );
+        case TargetPlatform.android:
+          return  AndroidWebViewControllerCreationParams();
+        default:
+          break;
+      }
+    }
 
-    unawaited(_controller.loadRequest(uri, headers: headers));
+    return const PlatformWebViewControllerCreationParams();
   }
 
   @override
